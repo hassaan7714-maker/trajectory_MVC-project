@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Professional Drone Trajectory Planning</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:linear-gradient(180deg, #0f1622 0%, #1a2942 50%, #0d0f1f 100%);font-family:'Segoe UI',Arial,sans-serif;overflow:hidden;color:#fff;}
+canvas{display:block;}
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+/* TOP HEADER */
+.header{pointer-events:none;text-align:center;padding:14px 0 0;}
+.header h1{font-size:20px;font-weight:700;color:#4db8ff;letter-spacing:2.5px;text-transform:uppercase;text-shadow:0 0 20px rgba(77,184,255,0.3);}
+.header p{font-size:11px;color:#88a8cc;letter-spacing:1.5px;margin-top:2px;font-weight:500;}
+
+/* MISSION INFO PANEL */
+.mission-panel{position:absolute;top:60px;left:14px;background:rgba(10,18,40,0.92);border:2px solid #2a5fa0;border-radius:10px;padding:12px 14px;width:240px;pointer-events:none;box-shadow:0 0 15px rgba(45,120,200,0.15);}
+.mission-panel h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:8px;font-weight:700;}
+.mission-row{display:flex;flex-direction:column;margin-bottom:7px;}
+.mission-label{font-size:9px;color:#7a9bb5;letter-spacing:1px;margin-bottom:2px;font-weight:600;}
+.mission-val{font-size:11px;color:#e8f5ff;font-family:monospace;font-weight:500;}
+.mission-val span{color:#4db8ff;font-weight:700;}
+
+/* LIVE TELEMETRY PANEL */
+.telemetry-panel{position:absolute;top:60px;right:14px;background:rgba(10,18,40,0.92);border:2px solid #2a5fa0;border-radius:10px;padding:12px 14px;width:210px;pointer-events:none;box-shadow:0 0 15px rgba(45,120,200,0.15);}
+.telemetry-panel h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:8px;font-weight:700;}
+.telem-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.telem-name{font-size:9.5px;color:#7a9bb5;font-weight:600;}
+.telem-val{font-size:11px;font-weight:700;color:#4db8ff;font-family:monospace;}
+.telem-warning{color:#ff9800;}
+.telem-danger{color:#ff5252;}
+.telem-good{color:#66bb6a;}
+
+/* VECTOR DISPLAY */
+.vec-panel{position:absolute;bottom:160px;left:14px;background:rgba(10,18,40,0.92);border:2px solid #2a5fa0;border-radius:10px;padding:12px 14px;width:220px;pointer-events:none;box-shadow:0 0 15px rgba(45,120,200,0.15);}
+.vec-panel h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:8px;font-weight:700;}
+.vec-row{margin-bottom:6px;}
+.vec-label{font-size:9px;letter-spacing:1px;margin-bottom:1px;font-weight:600;}
+.vec-val{font-size:10px;font-family:monospace;font-weight:500;}
+
+/* SYSTEM STATUS */
+.status-panel{position:absolute;bottom:160px;right:14px;background:rgba(10,18,40,0.92);border:2px solid #2a5fa0;border-radius:10px;padding:12px 14px;width:210px;pointer-events:none;box-shadow:0 0 15px rgba(45,120,200,0.15);}
+.status-panel h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:8px;font-weight:700;}
+.status-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:10px;}
+.status-label{color:#7a9bb5;font-weight:600;}
+.status-bar{flex:1;height:6px;background:rgba(30,60,110,0.5);border-radius:3px;margin:0 8px;overflow:hidden;border:0.5px solid #1e3a6e;}
+.status-fill{height:100%;background:linear-gradient(90deg,#4db8ff,#2a9ff0);border-radius:3px;}
+
+/* CONTROLS */
+.controls{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:all;}
+.btn{background:rgba(30,80,150,0.9);border:2px solid #2a5fa0;color:#4db8ff;padding:9px 20px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:all 0.3s;box-shadow:0 0 10px rgba(45,120,200,0.2);}
+.btn:hover{background:rgba(77,184,255,0.3);border-color:#4db8ff;box-shadow:0 0 15px rgba(77,184,255,0.4);transform:scale(1.05);}
+.btn.active{background:rgba(77,184,255,0.25);border-color:#4db8ff;color:#4db8ff;box-shadow:0 0 20px rgba(77,184,255,0.5);}
+
+/* TRAJECTORY VALUE SETTERS */
+.trajectory-panel{position:absolute;top:205px;right:14px;background:rgba(10,18,40,0.96);border:2px solid #2a5fa0;border-radius:12px;padding:12px 14px;width:260px;pointer-events:all;box-shadow:0 0 18px rgba(45,120,200,0.18);transition:opacity .25s ease,transform .25s ease;z-index:5;}
+.trajectory-panel.closed{opacity:0;transform:translateX(24px);pointer-events:none;}
+.panel-title{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:8px;}
+.trajectory-panel h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;}
+.panel-close{width:22px;height:22px;border:1px solid #2a5fa0;border-radius:50%;background:rgba(30,80,150,0.8);color:#9ed9ff;font-size:14px;line-height:18px;cursor:pointer;font-weight:800;}
+.panel-close:hover{background:rgba(77,184,255,0.28);border-color:#4db8ff;color:#fff;}
+.trajectory-tab{position:absolute;top:205px;right:14px;display:none;pointer-events:all;z-index:4;background:rgba(30,80,150,0.92);border:2px solid #2a5fa0;color:#4db8ff;padding:10px 14px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;cursor:pointer;box-shadow:0 0 14px rgba(45,120,200,0.22);}
+.trajectory-tab.show{display:block;}
+.trajectory-tab:hover{background:rgba(77,184,255,0.28);border-color:#4db8ff;}
+.control-row{margin-bottom:8px;}
+.trajectory-panel .control-row:first-of-type{width:100%;}
+.control-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.control-label{font-size:9px;color:#7a9bb5;letter-spacing:1px;font-weight:700;text-transform:uppercase;}
+.control-value{font-size:10px;color:#e8f5ff;font-family:monospace;font-weight:700;}
+.trajectory-panel input[type="range"]{width:100%;accent-color:#4db8ff;cursor:pointer;}
+.trajectory-panel select{width:100%;background:rgba(22,50,95,0.9);border:1px solid #2a5fa0;border-radius:7px;color:#e8f5ff;padding:7px 8px;font-size:11px;font-weight:700;outline:none;cursor:pointer;}
+.mini-actions{display:flex;gap:7px;margin-top:8px;}
+.mini-btn{flex:1;background:rgba(30,80,150,0.85);border:1px solid #2a5fa0;color:#4db8ff;padding:7px 8px;border-radius:14px;font-size:9px;font-weight:800;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;}
+.mini-btn:hover{background:rgba(77,184,255,0.28);border-color:#4db8ff;}
+
+/* PROGRESS */
+.progress-bar{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);width:360px;pointer-events:none;}
+.prog-label{font-size:9px;color:#7a9bb5;text-align:center;margin-bottom:4px;letter-spacing:1.5px;font-weight:600;text-transform:uppercase;}
+.prog-track{background:rgba(30,60,110,0.6);border-radius:10px;height:6px;overflow:hidden;border:1px solid #2a5fa0;}
+.prog-fill{height:100%;background:linear-gradient(90deg,#1a6eb5,#4db8ff,#2a9ff0);border-radius:10px;transition:width 0.1s;width:0%;box-shadow:0 0 10px rgba(77,184,255,0.4);}
+
+/* LEGEND */
+.legend{position:absolute;bottom:160px;right:240px;background:rgba(10,18,40,0.92);border:2px solid #2a5fa0;border-radius:10px;padding:10px 14px;pointer-events:none;box-shadow:0 0 15px rgba(45,120,200,0.15);}
+.legend h3{font-size:10px;color:#4db8ff;letter-spacing:1.5px;text-transform:uppercase;border-bottom:1px solid #2a5fa0;padding-bottom:5px;margin-bottom:7px;font-weight:700;}
+.leg-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:9.5px;color:#7a9bb5;font-weight:600;}
+.leg-dot{width:10px;height:3px;border-radius:2px;}
+
+@media (max-width: 980px){
+  .trajectory-panel{top:205px;right:14px;width:250px;}
+  .control-row,.trajectory-panel .control-row:first-of-type{width:100%;margin-bottom:8px;}
+  .mini-actions{margin-top:8px;}
+  .legend{display:none;}
+}
+
+@media (max-height: 720px){
+  .trajectory-panel,.trajectory-tab{top:190px;}
+  .trajectory-panel{width:245px;padding:10px 12px;}
+  .control-row{margin-bottom:6px;}
+  .control-head{margin-bottom:2px;}
+  .trajectory-panel select{padding:5px 7px;}
+  .mini-btn{padding:6px 8px;}
+  .vec-panel,.status-panel,.legend{bottom:118px;}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="header">
+    <h1>🚁 Drone Mission Planner</h1>
+    <p>Advanced 3D Trajectory Planning · Real-Time Flight Dynamics · GPS Navigation</p>
+  </div>
+
+  <div class="mission-panel">
+    <h3>📍 Mission Parameters</h3>
+    <div class="mission-row">
+      <div class="mission-label">FLIGHT PHASE</div>
+      <div class="mission-val"><span>ACTIVE</span></div>
+    </div>
+    <div class="mission-row">
+      <div class="mission-label">MISSION TIME</div>
+      <div class="mission-val"><span id="mtime">0:00:00</span></div>
+    </div>
+    <div class="mission-row">
+      <div class="mission-label">DISTANCE TRAVELED</div>
+      <div class="mission-val"><span id="mdist">0.00</span> km</div>
+    </div>
+    <div class="mission-row">
+      <div class="mission-label">WAYPOINT INDEX</div>
+      <div class="mission-val"><span id="mwp">0 / 12</span></div>
+    </div>
+  </div>
+
+  <div class="telemetry-panel">
+    <h3>📡 Live Telemetry</h3>
+    <div class="telem-row">
+      <span class="telem-name">Altitude</span>
+      <span class="telem-val" id="salt">0.0m</span>
+    </div>
+    <div class="telem-row">
+      <span class="telem-name">Speed</span>
+      <span class="telem-val" id="speed">0.0 m/s</span>
+    </div>
+    <div class="telem-row">
+      <span class="telem-name">Battery</span>
+      <span class="telem-val telem-good" id="battery">100%</span>
+    </div>
+    <div class="telem-row">
+      <span class="telem-name">GPS Signal</span>
+      <span class="telem-val telem-good" id="gps">Strong</span>
+    </div>
+    <div class="telem-row">
+      <span class="telem-name">Heading</span>
+      <span class="telem-val" id="heading">0°</span>
+    </div>
+  </div>
+
+  <div class="vec-panel">
+    <h3>⚡ Vector Analysis</h3>
+    <div class="vec-row">
+      <div class="vec-label" style="color:#4fc3f7;font-weight:700;">T(t) — Tangent</div>
+      <div class="vec-val" id="vt" style="color:#a0d8ff;">⟨0.000, 0.000, 0.000⟩</div>
+    </div>
+    <div class="vec-row">
+      <div class="vec-label" style="color:#ff7043;font-weight:700;">N(t) — Normal</div>
+      <div class="vec-val" id="vn" style="color:#ffaa99;">⟨0.000, 0.000, 0.000⟩</div>
+    </div>
+    <div class="vec-row">
+      <div class="vec-label" style="color:#66bb6a;font-weight:700;">r′(t) — Velocity</div>
+      <div class="vec-val" id="vv" style="color:#aae0aa;">⟨0.000, 0.000, 0.000⟩</div>
+    </div>
+  </div>
+
+  <div class="status-panel">
+    <h3>🛡️ System Status</h3>
+    <div class="status-item">
+      <span class="status-label">Motors</span>
+      <span style="color:#66bb6a;font-weight:700;">OK</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">IMU</span>
+      <span style="color:#66bb6a;font-weight:700;">OK</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Gimbal</span>
+      <span style="color:#4db8ff;font-weight:700;">Ready</span>
+    </div>
+    <div class="status-item" style="margin-top:8px;font-size:9px;">
+      <span class="status-label">CPU Load</span>
+      <div class="status-bar">
+        <div class="status-fill" id="cpubar" style="width:35%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>Legend</h3>
+    <div class="leg-row"><div class="leg-dot" style="background:#4db8ff;height:3px;"></div><span>Flight Path</span></div>
+    <div class="leg-row"><div class="leg-dot" style="background:#ff6b4a;height:3px;"></div><span>Flight Trail</span></div>
+    <div class="leg-row"><div class="leg-dot" style="background:#66bb6a;height:3px;"></div><span>Velocity Vector</span></div>
+    <div class="leg-row"><div class="leg-dot" style="background:#ffe57a;height:5px;border-radius:3px;"></div><span>Drone Position</span></div>
+  </div>
+
+  <button class="trajectory-tab" id="trajectoryTab" onclick="toggleTrajectoryPanel()">Trajectory</button>
+
+  <div class="trajectory-panel" id="trajectoryPanel">
+    <div class="panel-title">
+      <h3>Trajectory Control</h3>
+      <button class="panel-close" onclick="toggleTrajectoryPanel()" title="Close trajectory controls">×</button>
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Path Type</span>
+        <span class="control-value" id="pathVal">Helix</span>
+      </div>
+      <select id="pathType">
+        <option value="helix">Helix</option>
+        <option value="circle">Circle Orbit</option>
+        <option value="wave">Wave Patrol</option>
+        <option value="figure8">Figure 8</option>
+      </select>
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Radius</span>
+        <span class="control-value"><span id="radiusVal">1.00</span>x</span>
+      </div>
+      <input id="radiusCtrl" type="range" min="0.35" max="2.20" step="0.05" value="1.00">
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Altitude</span>
+        <span class="control-value"><span id="altitudeVal">2.00</span>x</span>
+      </div>
+      <input id="altitudeCtrl" type="range" min="0.40" max="3.80" step="0.10" value="2.00">
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Turns</span>
+        <span class="control-value"><span id="turnsVal">2</span></span>
+      </div>
+      <input id="turnsCtrl" type="range" min="1" max="6" step="1" value="2">
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Climb Rate</span>
+        <span class="control-value"><span id="climbVal">1.00</span>x</span>
+      </div>
+      <input id="climbCtrl" type="range" min="0" max="2.50" step="0.05" value="1.00">
+    </div>
+    <div class="control-row">
+      <div class="control-head">
+        <span class="control-label">Speed</span>
+        <span class="control-value"><span id="speedVal">1.00</span>x</span>
+      </div>
+      <input id="speedCtrl" type="range" min="0.20" max="3.00" step="0.05" value="1.00">
+    </div>
+    <div class="mini-actions">
+      <button class="mini-btn" onclick="applyPreset('survey')">Survey</button>
+      <button class="mini-btn" onclick="applyPreset('orbit')">Orbit</button>
+      <button class="mini-btn" onclick="applyPreset('agile')">Agile</button>
+    </div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="prog-label">🎯 MISSION PROGRESS</div>
+    <div class="prog-track"><div class="prog-fill" id="pfill"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn active" id="btnPlay" onclick="togglePlay()">⏸ Pause</button>
+    <button class="btn" onclick="resetAnim()">↺ Reset</button>
+    <button class="btn" onclick="toggleAxes()">📐 Axes</button>
+    <button class="btn" onclick="toggleTrail()">✦ Trail</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── ANIMATION STATE ──
+let t = 0;
+let T_MAX = 4 * Math.PI;
+const BASE_SPEED = 0.018;
+let playing = true;
+let showAxes = true;
+let showTrail = true;
+let trail = [];
+
+const trajectory = {
+  type: 'helix',
+  radius: 1,
+  altitude: 2,
+  turns: 2,
+  climb: 1,
+  speed: 1
+};
+
+// ── 3D → 2D PROJECTION ──
+// Isometric-style rotatable projection
+let rotY = 0.5, rotX = 0.35;
+let dragging = false, lastMX = 0, lastMY = 0;
+
+canvas.addEventListener('mousedown', e => { dragging=true; lastMX=e.clientX; lastMY=e.clientY; });
+canvas.addEventListener('mouseup',   () => dragging=false);
+canvas.addEventListener('mousemove', e => {
+  if(!dragging) return;
+  rotY += (e.clientX - lastMX) * 0.008;
+  rotX += (e.clientY - lastMY) * 0.006;
+  rotX = Math.max(-1.2, Math.min(1.2, rotX));
+  lastMX = e.clientX; lastMY = e.clientY;
+});
+canvas.addEventListener('touchstart', e => { dragging=true; lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY; });
+canvas.addEventListener('touchend',   () => dragging=false);
+canvas.addEventListener('touchmove',  e => {
+  rotY += (e.touches[0].clientX - lastMX) * 0.008;
+  rotX += (e.touches[0].clientY - lastMY) * 0.006;
+  rotX = Math.max(-1.2, Math.min(1.2, rotX));
+  lastMX = e.touches[0].clientX; lastMY = e.touches[0].clientY;
+});
+
+// Scale factor
+const SCALE = 90;
+
+function project(x3, y3, z3){
+  // Rotate around Y axis
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  const x1 = x3*cosY - z3*sinY;
+  const z1 = x3*sinY + z3*cosY;
+  // Rotate around X axis
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  const y2 = y3*cosX - z1*sinX;
+  const z2 = y3*sinX + z1*cosX;
+  const perspective = 4.5 / (4.5 + z2 * 0.18);
+  return {
+    x: W/2 + x1 * SCALE * perspective,
+    y: H/2 + y2 * SCALE * perspective * 0.85,
+    z: z2,
+    s: perspective
+  };
+}
+
+// ── HELIX MATH ──
+function updateTrajectoryLength(){
+  T_MAX = Math.max(1, trajectory.turns) * 2 * Math.PI;
+}
+
+function r(ti){
+  const radius = trajectory.radius;
+  const climbHeight = (ti / T_MAX) * trajectory.altitude * trajectory.climb;
+
+  if(trajectory.type === 'circle'){
+    return [radius * Math.cos(ti), radius * Math.sin(ti), trajectory.altitude];
+  }
+  if(trajectory.type === 'wave'){
+    return [
+      radius * Math.cos(ti),
+      radius * 0.7 * Math.sin(ti * 2),
+      climbHeight + Math.sin(ti * 1.5) * 0.18 * trajectory.altitude
+    ];
+  }
+  if(trajectory.type === 'figure8'){
+    return [
+      radius * Math.sin(ti),
+      radius * Math.sin(ti) * Math.cos(ti),
+      climbHeight + Math.cos(ti * 2) * 0.08 * trajectory.altitude
+    ];
+  }
+  return [radius * Math.cos(ti), radius * Math.sin(ti), climbHeight];
+}
+
+function rp(ti){
+  const dt = 0.001;
+  const p1 = r(ti + dt);
+  const p0 = r(ti - dt);
+  return [(p1[0]-p0[0])/(2*dt), (p1[1]-p0[1])/(2*dt), (p1[2]-p0[2])/(2*dt)];
+}
+function mag(v){   return Math.sqrt(v[0]**2+v[1]**2+v[2]**2); }
+function norm(v){  const m=mag(v) || 1; return v.map(x=>x/m); }
+
+function T(ti){
+  return norm(rp(ti));
+}
+function N(ti){
+  const dt = 0.001;
+  const t1 = T(ti+dt), t0 = T(ti-dt);
+  const dT = [(t1[0]-t0[0])/(2*dt),(t1[1]-t0[1])/(2*dt),(t1[2]-t0[2])/(2*dt)];
+  return norm(dT);
+}
+
+// ── GRID WITH TERRAIN ──
+function drawGrid(){
+  const gridLines = 6;
+  const gridSize  = 3.2;
+  const zBase     = -0.1;
+  
+  // Major grid lines
+  ctx.strokeStyle = 'rgba(40,80,150,0.35)';
+  ctx.lineWidth   = 1;
+  for(let i=-gridLines;i<=gridLines;i++){
+    const a = project(i/gridLines*gridSize, zBase, -gridLines/gridLines*gridSize);
+    const b = project(i/gridLines*gridSize, zBase,  gridLines/gridLines*gridSize);
+    const c = project(-gridLines/gridLines*gridSize, zBase, i/gridLines*gridSize);
+    const d = project( gridLines/gridLines*gridSize, zBase, i/gridLines*gridSize);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+  }
+  
+  // Ground plane gradient
+  for(let z = -gridLines; z <= gridLines; z++) {
+    for(let x = -gridLines; x <= gridLines; x++) {
+      const p = project(x/gridLines*gridSize, zBase, z/gridLines*gridSize);
+      const alpha = 0.08 * (1 - Math.abs(z/(gridLines*1.5)));
+      ctx.fillStyle = `rgba(70,120,200,${alpha})`;
+      ctx.fillRect(p.x-2, p.y-2, 4, 4);
+    }
+  }
+}
+
+// ── AXES ──
+function drawAxes(){
+  if(!showAxes) return;
+  const O = project(0,0,0);
+  const axes = [
+    {end:[2.0,0,0], color:'#ff6b6b', label:'NORTH', width:2},
+    {end:[0,2.0,0], color:'#4ecdc4', label:'EAST', width:2},
+    {end:[0,0,2.0], color:'#ffd93d', label:'UP', width:2},
+  ];
+  axes.forEach(ax=>{
+    const E = project(...ax.end);
+    ctx.beginPath();
+    ctx.moveTo(O.x,O.y);
+    ctx.lineTo(E.x,E.y);
+    ctx.strokeStyle = ax.color;
+    ctx.lineWidth = ax.width;
+    ctx.stroke();
+    ctx.fillStyle = ax.color;
+    ctx.font = 'bold 12px Segoe UI';
+    ctx.fillText(ax.label, E.x+6, E.y-6);
+    // Endpoint circle
+    ctx.beginPath();
+    ctx.arc(E.x, E.y, 3, 0, Math.PI*2);
+    ctx.fillStyle = ax.color;
+    ctx.fill();
+  });
+}
+
+// ── HELIX GHOST PATH ──
+function drawHelixPath(){
+  const steps = 400;
+  ctx.lineWidth = 2.2;
+  
+  // Draw with glow effect
+  for(let pass=0; pass<2; pass++){
+    for(let i=0;i<steps;i++){
+      const ti  = (i/steps)*T_MAX;
+      const ti1 = ((i+1)/steps)*T_MAX;
+      const p0  = project(...r(ti));
+      const p1  = project(...r(ti1));
+      const progress = ti/T_MAX;
+      const alpha = pass === 0 ? 0.15 : (0.25 + progress*0.4);
+      const glow = pass === 0 ? 8 : 0;
+      
+      ctx.beginPath();
+      ctx.moveTo(p0.x,p0.y);
+      ctx.lineTo(p1.x,p1.y);
+      
+      if(pass === 0){
+        ctx.shadowColor = `rgba(77,184,255,${alpha*0.6})`;
+        ctx.shadowBlur = glow;
+        ctx.strokeStyle = `rgba(77,184,255,${alpha*0.3})`;
+      } else {
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = `rgba(77,184,255,${alpha})`;
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.shadowColor = 'transparent';
+}
+
+// ── TRAIL ──
+function drawTrail(){
+  if(!showTrail || trail.length<2) return;
+  for(let i=1;i<trail.length;i++){
+    const p0 = project(...trail[i-1]);
+    const p1 = project(...trail[i]);
+    const a  = i/trail.length;
+    ctx.beginPath();
+    ctx.moveTo(p0.x,p0.y);
+    ctx.lineTo(p1.x,p1.y);
+    
+    // Gradient color: red to orange to yellow
+    const hue = 15 + a*15;
+    ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${a*0.9})`;
+    ctx.lineWidth   = 1.8 + a*2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+}
+
+// ── DRAW VECTOR ──
+function drawVector(origin, dir, color, scale=0.45){
+  const o = project(...origin);
+  const tip = [origin[0]+dir[0]*scale, origin[1]+dir[1]*scale, origin[2]+dir[2]*scale];
+  const e = project(...tip);
+  ctx.beginPath();
+  ctx.moveTo(o.x,o.y);
+  ctx.lineTo(e.x,e.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // arrowhead
+  const angle = Math.atan2(e.y-o.y, e.x-o.x);
+  ctx.beginPath();
+  ctx.moveTo(e.x,e.y);
+  ctx.lineTo(e.x-10*Math.cos(angle-0.4), e.y-10*Math.sin(angle-0.4));
+  ctx.lineTo(e.x-10*Math.cos(angle+0.4), e.y-10*Math.sin(angle+0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// ── REALISTIC DRONE ──
+function drawDrone(pos){
+  const p = project(...pos);
+  const s = p.s * 22;
+  
+  // Shadow on ground
+  const shadow = project(pos[0], pos[1], -0.1);
+  const shadowDist = Math.hypot(shadow.x - p.x, shadow.y - p.y);
+  if(shadowDist < 200){
+    const shadowAlpha = 0.3 * (1 - Math.min(shadowDist/150, 1));
+    ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+    ctx.beginPath();
+    ctx.ellipse(shadow.x, shadow.y, s*1.2, s*0.6, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Glow effect with multiple layers
+  for(let layer=2; layer>=0; layer--){
+    const radius = s * (2.5 - layer*0.7);
+    const grd = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,radius);
+    const intensity = 0.5 - layer*0.15;
+    grd.addColorStop(0,`rgba(255,200,100,${intensity*0.4})`);
+    grd.addColorStop(0.7,`rgba(255,140,60,${intensity*0.15})`);
+    grd.addColorStop(1,`rgba(255,100,0,0)`);
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,radius,0,Math.PI*2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+  }
+
+  // Main body (octagon-ish)
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,s*0.6,0,Math.PI*2);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fill();
+  ctx.strokeStyle = '#ffc857';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Center indicator
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,s*0.15,0,Math.PI*2);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.fill();
+
+  // 4 Arms with motors
+  const armLen = s*1.1;
+  const armAngles = [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
+  
+  armAngles.forEach((ang, idx)=>{
+    // Arm
+    const ax = p.x + Math.cos(ang)*armLen;
+    const ay = p.y + Math.sin(ang)*armLen;
+    
+    ctx.beginPath();
+    ctx.moveTo(p.x + Math.cos(ang)*s*0.65,p.y + Math.sin(ang)*s*0.65);
+    ctx.lineTo(ax,ay);
+    ctx.strokeStyle='rgba(255,200,100,0.8)';
+    ctx.lineWidth=3;
+    ctx.lineCap='round';
+    ctx.stroke();
+    
+    // Motor housing
+    ctx.beginPath();
+    ctx.arc(ax,ay,s*0.32,0,Math.PI*2);
+    ctx.fillStyle='#444';
+    ctx.fill();
+    ctx.strokeStyle='#ffc857';
+    ctx.lineWidth=1.5;
+    ctx.stroke();
+    
+    // Propeller (rotating)
+    const rotation = t*3 + idx*Math.PI/2;
+    ctx.save();
+    ctx.translate(ax,ay);
+    ctx.rotate(rotation);
+    
+    ctx.fillStyle='rgba(200,220,255,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0,0,s*0.42,s*0.1,0,0,Math.PI*2);
+    ctx.fill();
+    
+    ctx.rotate(Math.PI/2);
+    ctx.beginPath();
+    ctx.ellipse(0,0,s*0.42,s*0.1,0,0,Math.PI*2);
+    ctx.fill();
+    
+    ctx.restore();
+    
+    // Propeller edge glow
+    const propGrad = ctx.createRadialGradient(ax,ay,0,ax,ay,s*0.45);
+    propGrad.addColorStop(0,'rgba(100,200,255,0)');
+    propGrad.addColorStop(1,'rgba(100,200,255,0.2)');
+    ctx.beginPath();
+    ctx.arc(ax,ay,s*0.45,0,Math.PI*2);
+    ctx.fillStyle = propGrad;
+    ctx.fill();
+  });
+  
+  // Camera/gimbal indicator
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y+s*0.25, s*0.25, s*0.15, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fill();
+  ctx.strokeStyle = '#4db8ff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  
+  // LED indicator
+  ctx.beginPath();
+  ctx.arc(p.x-s*0.45, p.y-s*0.3, s*0.08, 0, Math.PI*2);
+  ctx.fillStyle = '#ff6b6b';
+  ctx.fill();
+}
+
+// ── BUILDINGS/STRUCTURES ──
+function drawBuilding(){
+  // Building 1
+  drawStructure(0.7, 0.9, 0.6, 2.5, 'rgba(150,170,200,0.4)');
+  // Building 2
+  drawStructure(-0.8, -0.6, 0.5, 1.8, 'rgba(130,160,220,0.35)');
+  // Building 3
+  drawStructure(-0.3, 1.2, 0.4, 2.0, 'rgba(140,165,210,0.38)');
+}
+
+function drawStructure(cx, cz, radius, height, color){
+  const steps = 16;
+  
+  // Top ring
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a = (i/steps)*Math.PI*2;
+    const x = cx + radius*Math.cos(a);
+    const z = cz + radius*Math.sin(a);
+    const p = project(x, 0, z + height);
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  }
+  ctx.strokeStyle='rgba(100,140,220,0.5)';
+  ctx.lineWidth=1.2;
+  ctx.stroke();
+
+  // Bottom ring
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a = (i/steps)*Math.PI*2;
+    const x = cx + radius*Math.cos(a);
+    const z = cz + radius*Math.sin(a);
+    const p = project(x, 0, z);
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  }
+  ctx.strokeStyle='rgba(100,140,220,0.35)';
+  ctx.lineWidth=1;
+  ctx.stroke();
+
+  // Vertical edges
+  for(let i=0;i<8;i++){
+    const a = (i/8)*Math.PI*2;
+    const x = cx + radius*Math.cos(a);
+    const z = cz + radius*Math.sin(a);
+    const pt = project(x, 0, z + height);
+    const pb = project(x, 0, z);
+    ctx.beginPath();
+    ctx.moveTo(pt.x,pt.y);
+    ctx.lineTo(pb.x,pb.y);
+    ctx.strokeStyle='rgba(100,140,220,0.2)';
+    ctx.lineWidth=0.8;
+    ctx.stroke();
+  }
+}
+
+// ── STARS & ATMOSPHERE ──
+let stars = [];
+for(let i=0;i<150;i++) stars.push({
+  x:Math.random()*2000,
+  y:Math.random()*1200,
+  r:Math.random()*1.5+0.3,
+  a:Math.random(),
+  twinkle: Math.random()*0.02+0.01
+});
+
+function drawStars(){
+  // Twinkling effect
+  stars.forEach(s=>{
+    s.a += (Math.random()-0.5)*0.05;
+    s.a = Math.max(0.2, Math.min(1, s.a));
+    
+    ctx.beginPath();
+    ctx.arc(s.x%W, s.y%H, s.r, 0, Math.PI*2);
+    ctx.fillStyle=`rgba(200,220,255,${s.a*0.5})`;
+    ctx.fill();
+  });
+}
+
+function drawAtmosphere(){
+  // Top sky gradient (space)
+  const grad1 = ctx.createLinearGradient(0, 0, 0, H*0.3);
+  grad1.addColorStop(0, 'rgba(5,10,30,1)');
+  grad1.addColorStop(1, 'rgba(15,25,50,1)');
+  ctx.fillStyle = grad1;
+  ctx.fillRect(0, 0, W, H*0.3);
+  
+  // Mid sky
+  const grad2 = ctx.createLinearGradient(0, H*0.3, 0, H*0.8);
+  grad2.addColorStop(0, 'rgba(15,35,70,1)');
+  grad2.addColorStop(1, 'rgba(20,40,80,0.9)');
+  ctx.fillStyle = grad2;
+  ctx.fillRect(0, H*0.3, W, H*0.5);
+  
+  // Lower horizon
+  const grad3 = ctx.createLinearGradient(0, H*0.8, 0, H);
+  grad3.addColorStop(0, 'rgba(25,50,100,0.9)');
+  grad3.addColorStop(1, 'rgba(35,60,110,0.8)');
+  ctx.fillStyle = grad3;
+  ctx.fillRect(0, H*0.8, W, H*0.2);
+}
+
+// ── TOOLTIP ──
+function drawFloatingLabel(pos, text, color){
+  const p = project(...pos);
+  ctx.fillStyle = color;
+  ctx.font = '10px Segoe UI';
+  ctx.fillText(text, p.x+8, p.y-8);
+}
+
+// ── UPDATE UI ──
+function updateUI(){
+  const pos  = r(t);
+  const vel  = rp(t);
+  const Tv   = T(t);
+  const Nv   = N(t);
+  const speed = mag(vel);
+  const dist = t * Math.SQRT2;
+  const altitude = pos[2]*25; // Convert to meters
+  const seconds = Math.floor(t*3.5);
+  const minutes = Math.floor(seconds/60);
+  const secs = seconds%60;
+  
+  // Mission info
+  document.getElementById('mtime').textContent = `${minutes}:${String(secs).padStart(2,'0')}:00`;
+  document.getElementById('mdist').textContent = (dist*2.5).toFixed(2);
+  document.getElementById('mwp').textContent = `${Math.floor((t/T_MAX)*12)} / 12`;
+  
+  // Telemetry
+  document.getElementById('salt').textContent = altitude.toFixed(1) + 'm';
+  document.getElementById('speed').textContent = (speed*8).toFixed(1) + ' m/s';
+  
+  // Battery depletion during flight
+  const battery = Math.max(5, 100 - (t/T_MAX)*95);
+  const batteryColor = battery > 30 ? 'telem-good' : battery > 15 ? 'telem-warning' : 'telem-danger';
+  document.getElementById('battery').textContent = battery.toFixed(0) + '%';
+  document.getElementById('battery').className = 'telem-val ' + batteryColor;
+  
+  // GPS signal simulation
+  const gpsSignal = Math.sin(t)*0.3 + 0.7;
+  document.getElementById('gps').textContent = gpsSignal > 0.6 ? 'Strong' : gpsSignal > 0.3 ? 'Good' : 'Weak';
+  
+  // Heading calculation (yaw)
+  const heading = ((Math.atan2(vel[1], vel[0]) * 180/Math.PI) + 360) % 360;
+  document.getElementById('heading').textContent = heading.toFixed(0) + '°';
+  
+  // Vectors
+  document.getElementById('vt').textContent = `⟨${Tv[0].toFixed(3)}, ${Tv[1].toFixed(3)}, ${Tv[2].toFixed(3)}⟩`;
+  document.getElementById('vn').textContent = `⟨${Nv[0].toFixed(3)}, ${Nv[1].toFixed(3)}, ${Nv[2].toFixed(3)}⟩`;
+  document.getElementById('vv').textContent = `⟨${vel[0].toFixed(3)}, ${vel[1].toFixed(3)}, ${vel[2].toFixed(3)}⟩`;
+  
+  document.getElementById('pfill').style.width = (t/T_MAX*100).toFixed(1)+'%';
+  
+  // CPU load visualization (animated)
+  const cpuLoad = 30 + Math.sin(t)*15;
+  document.getElementById('cpubar').style.width = cpuLoad.toFixed(0) + '%';
+}
+
+// ── MAIN DRAW ──
+function draw(){
+  // Clear with atmosphere
+  drawAtmosphere();
+  drawStars();
+  
+  drawGrid();
+  drawBuilding();
+  drawAxes();
+  drawHelixPath();
+  drawTrail();
+
+  const pos = r(t);
+  const Tv  = T(t);
+  const Nv  = N(t);
+  const vel = rp(t);
+
+  // Vectors at drone position
+  drawVector(pos, Tv,  '#4fc3f7', 0.55);   // Tangent - blue
+  drawVector(pos, Nv,  '#ff7043', 0.48);  // Normal  - orange
+  drawVector(pos, vel, '#66bb6a', 0.35);  // Velocity- green
+
+  // Drone
+  drawDrone(pos);
+
+  // Enhanced labels with background
+  drawFloatingLabel([pos[0]+Tv[0]*0.5, pos[1]+Tv[1]*0.5, pos[2]+Tv[2]*0.5], 'T(t)', '#4fc3f7');
+  drawFloatingLabel([pos[0]+Nv[0]*0.48, pos[1]+Nv[1]*0.48, pos[2]+Nv[2]*0.48], 'N(t)', '#ff7043');
+
+  // Altitude drop line
+  const dpos  = project(...pos);
+  const dbase = project(pos[0], pos[1], 0);
+  ctx.beginPath();
+  ctx.setLineDash([4,5]);
+  ctx.moveTo(dpos.x, dpos.y);
+  ctx.lineTo(dbase.x, dbase.y);
+  ctx.strokeStyle = 'rgba(255,220,100,0.25)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Altitude indicator circle
+  ctx.beginPath();
+  ctx.arc(dbase.x, dbase.y, 5, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,200,80,0.4)';
+  ctx.fill();
+
+  updateUI();
+}
+
+// ── ANIMATION LOOP ──
+function animate(){
+  requestAnimationFrame(animate);
+  if(playing){
+    t += BASE_SPEED * trajectory.speed;
+    if(t > T_MAX){ t = 0; trail = []; }
+    trail.push(r(t).slice());
+    if(trail.length > 200) trail.shift();
+  }
+  draw();
+}
+
+// ── CONTROLS ──
+function togglePlay(){
+  playing = !playing;
+  const btn = document.getElementById('btnPlay');
+  btn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('active', playing);
+}
+function resetAnim(){
+  t = 0; trail = [];
+  document.getElementById('pfill').style.width = '0%';
+}
+function toggleAxes(){  showAxes  = !showAxes;  }
+function toggleTrail(){ showTrail = !showTrail; }
+
+function toggleTrajectoryPanel(){
+  const panel = document.getElementById('trajectoryPanel');
+  const tab = document.getElementById('trajectoryTab');
+  const isClosed = panel.classList.toggle('closed');
+  tab.classList.toggle('show', isClosed);
+}
+
+function setControlValue(id, value){
+  const el = document.getElementById(id);
+  if(el) el.value = value;
+}
+
+function syncTrajectoryControls(){
+  trajectory.type = document.getElementById('pathType').value;
+  trajectory.radius = parseFloat(document.getElementById('radiusCtrl').value);
+  trajectory.altitude = parseFloat(document.getElementById('altitudeCtrl').value);
+  trajectory.turns = parseInt(document.getElementById('turnsCtrl').value, 10);
+  trajectory.climb = parseFloat(document.getElementById('climbCtrl').value);
+  trajectory.speed = parseFloat(document.getElementById('speedCtrl').value);
+
+  updateTrajectoryLength();
+  if(t > T_MAX) t = T_MAX;
+  trail = [];
+
+  const selected = document.getElementById('pathType');
+  document.getElementById('pathVal').textContent = selected.options[selected.selectedIndex].text;
+  document.getElementById('radiusVal').textContent = trajectory.radius.toFixed(2);
+  document.getElementById('altitudeVal').textContent = trajectory.altitude.toFixed(2);
+  document.getElementById('turnsVal').textContent = trajectory.turns;
+  document.getElementById('climbVal').textContent = trajectory.climb.toFixed(2);
+  document.getElementById('speedVal').textContent = trajectory.speed.toFixed(2);
+}
+
+function applyPreset(name){
+  const presets = {
+    survey: {type:'wave', radius:1.45, altitude:2.4, turns:3, climb:0.75, speed:0.75},
+    orbit:  {type:'circle', radius:1.25, altitude:1.6, turns:2, climb:0, speed:1},
+    agile:  {type:'figure8', radius:1.1, altitude:2.0, turns:4, climb:1.25, speed:1.65}
+  };
+  const preset = presets[name];
+  if(!preset) return;
+
+  setControlValue('pathType', preset.type);
+  setControlValue('radiusCtrl', preset.radius);
+  setControlValue('altitudeCtrl', preset.altitude);
+  setControlValue('turnsCtrl', preset.turns);
+  setControlValue('climbCtrl', preset.climb);
+  setControlValue('speedCtrl', preset.speed);
+  resetAnim();
+  syncTrajectoryControls();
+}
+
+['pathType','radiusCtrl','altitudeCtrl','turnsCtrl','climbCtrl','speedCtrl'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', syncTrajectoryControls);
+});
+syncTrajectoryControls();
+
+animate();
+</script>
+</body>
+</html>
