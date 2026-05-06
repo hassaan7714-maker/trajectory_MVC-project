@@ -219,7 +219,6 @@ canvas{display:block;}
         <option value="helix">Helix</option>
         <option value="circle">Circle Orbit</option>
         <option value="wave">Wave Patrol</option>
-        <option value="figure8">Figure 8</option>
       </select>
     </div>
     <div class="control-row">
@@ -368,13 +367,6 @@ function r(ti){
       radius * Math.cos(ti),
       radius * 0.7 * Math.sin(ti * 2),
       climbHeight + Math.sin(ti * 1.5) * 0.18 * trajectory.altitude
-    ];
-  }
-  if(trajectory.type === 'figure8'){
-    return [
-      radius * Math.sin(ti),
-      radius * Math.sin(ti) * Math.cos(ti),
-      climbHeight + Math.cos(ti * 2) * 0.08 * trajectory.altitude
     ];
   }
   return [radius * Math.cos(ti), radius * Math.sin(ti), climbHeight];
@@ -921,7 +913,7 @@ function applyPreset(name){
   const presets = {
     survey: {type:'wave', radius:1.45, altitude:2.4, turns:3, climb:0.75, speed:0.75},
     orbit:  {type:'circle', radius:1.25, altitude:1.6, turns:2, climb:0, speed:1},
-    agile:  {type:'figure8', radius:1.1, altitude:2.0, turns:4, climb:1.25, speed:1.65}
+    agile:  {type:'helix', radius:1.1, altitude:2.0, turns:4, climb:1.25, speed:1.65}
   };
   const preset = presets[name];
   if(!preset) return;
